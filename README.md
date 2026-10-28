@@ -1,5 +1,7 @@
 # DualGuard
 
+**简体中文** · [English](README.en.md)
+
 **让 WorkBuddy 国内版与国际版在同一台 Windows 上和平共处。**
 
 一套纯脚本的进程级隔离方案：不修改任何程序文件、不写入 `HKLM`、不需要管理员权限。删除两个目录即可完全回滚。
@@ -54,7 +56,8 @@ flowchart LR
 | `WorkBuddy AI.cmd` | 以隔离 TEMP 启动国际版（**开机自启项指向此文件**） |
 | `dg-launch.ps1` | 启动器：解析 exe 路径 → 建隔离 TEMP → 注入 `TMP`/`TEMP` → 拉起进程 |
 | `dg-menu.ps1` | 维护菜单：状态诊断、快照、清缓存、冻结/解冻 |
-| `README.md` | 本文件 |
+| `README.md` | 本文件（中文） |
+| `README.en.md` | 英文版（内容与本文等价） |
 
 **本目录只放静态文件，不产生任何运行产物，也不放任何历史记录。** 日志与快照统一写到 `%LOCALAPPDATA%\DualGuard\`，所以整个目录可以整体拷贝、打包、甚至设为只读。
 
@@ -278,20 +281,6 @@ PowerShell 5.1 在读取无 BOM 的 `.ps1` 时会按系统 ANSI 代码页解析�
 **Q：会不会把我的数据搞丢？**
 
 工具本身只读数据、只写自己的日志与快照。真正的风险来自客户端更新器，所以提供了快照功能：选 `1` 生成的 zip 包含两个数据根与登录态，可直接解压回原位。
-
----
-
-## English
-
-**DualGuard** isolates the Chinese and international builds of WorkBuddy on the same Windows machine.
-
-Both clients write updater downloads to a shared `%TEMP%\workbuddy-update-x64*` cache, so one build can pick up the other's installer and silently uninstall/reinstall over it. DualGuard launches each build through a tiny PowerShell launcher that rewrites `TMP`/`TEMP` for that process tree only, so each build gets a private updater cache. Nothing else is touched — no program files, no `HKLM`, no admin rights.
-
-A companion menu handles status checks, data snapshots, cache cleanup, and an optional "freeze" that blocks unattended auto-updates by occupying the cache directory name with zero-byte placeholder files.
-
-**Setup order matters:** run the menu first (freeze, then snapshot + cleanup — both require the clients to be closed), and only then launch through the `.cmd` files. Freezing applies to processes started after the placeholder files exist.
-
-**Not a guarantee.** Installer behaviour (process termination, install-directory memory) is a binary-level concern this approach cannot control. Use it to reduce risk, together with the discipline of never updating both builds at once.
 
 ---
 
