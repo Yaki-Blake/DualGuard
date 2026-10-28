@@ -4,7 +4,7 @@
 
 一套纯脚本的进程级隔离方案：不修改任何程序文件、不写入 `HKLM`、不需要管理员权限。删除两个目录即可完全回滚。
 
-`Windows 10 / 11` · `PowerShell 5.1` · `无需管理员`
+`Windows 10 / 11` · `PowerShell 5.1` · `无需管理员` · `MIT`
 
 ---
 
@@ -47,14 +47,14 @@ flowchart LR
 
 ## 文件清单
 
-| 文件                 | 作用                                                |
-| ------------------ | ------------------------------------------------- |
-| `DualGuard.cmd`    | **主入口**，打开维护菜单                                    |
-| `WorkBuddy CN.cmd` | 以隔离 TEMP 启动国内版                                    |
-| `WorkBuddy AI.cmd` | 以隔离 TEMP 启动国际版（**开机自启项指向此文件**）                    |
-| `dg-launch.ps1`    | 启动器：解析 exe 路径 → 建隔离 TEMP → 注入 `TMP`/`TEMP` → 拉起进程 |
-| `dg-menu.ps1`      | 维护菜单：状态诊断、快照、清缓存、冻结/解冻                            |
-| `README.md`        | 本文件                                               |
+| 文件 | 作用 |
+|---|---|
+| `DualGuard.cmd` | **主入口**，打开维护菜单 |
+| `WorkBuddy CN.cmd` | 以隔离 TEMP 启动国内版 |
+| `WorkBuddy AI.cmd` | 以隔离 TEMP 启动国际版（**开机自启项指向此文件**） |
+| `dg-launch.ps1` | 启动器：解析 exe 路径 → 建隔离 TEMP → 注入 `TMP`/`TEMP` → 拉起进程 |
+| `dg-menu.ps1` | 维护菜单：状态诊断、快照、清缓存、冻结/解冻 |
+| `README.md` | 本文件 |
 
 **本目录只放静态文件，不产生任何运行产物，也不放任何历史记录。** 日志与快照统一写到 `%LOCALAPPDATA%\DualGuard\`，所以整个目录可以整体拷贝、打包、甚至设为只读。
 
@@ -64,18 +64,30 @@ flowchart LR
 
 ## 快速开始
 
+**顺序：先配置，后启动。**
+
+原因只有一条：冻结和清缓存都要求「客户端未运行」。首次配置时两个客户端还没启动，天然满足这个条件；一旦先启动再去配置，就得先把两版全部退出才能继续，白绕一圈。
+
 ### 首次配置（3 步）
 
 1. 把整个目录放到任意位置——路径可含空格与中文，脚本用 `%~dp0` / `$PSScriptRoot` 自动定位
 2. **双击 `DualGuard.cmd`**，按顺序做三件事：
    - 选 `5` 冻结自动更新
-   - 选 `3` 生成首份快照并清理共用缓存（结尾要输入 `yes` 确认；若这台机器还从没用过客户端，数据目录为空，快照为空属正常）
+   - 选 `3` 生成首份快照并清理共用缓存（结尾要输入 `yes` 确认；若这台机器还从没用过客户端、数据目录为空，快照为空属正常）
    - 选 `0` 退出
-   - 至此隔离生效，且已有一份干净备份。
+3. **再用 `WorkBuddy CN.cmd` 和 `WorkBuddy AI.cmd` 启动两个版本**（首次运行会自动创建隔离目录）
 
-**从此往后：用 `WorkBuddy CN.cmd` 和 `WorkBuddy AI.cmd` 启动两个版本**（首次运行会自动创建隔离目录）
+至此隔离生效，且已有一份干净备份。
 
-###
+### 之后日常
+
+| 场景 | 操作 |
+|---|---|
+| 启动 | 双击 `WorkBuddy CN.cmd` / `WorkBuddy AI.cmd` |
+| 更新 | `DualGuard.cmd` → 选 `4` 解冻 → 退出另一版 → 点应用内更新 → 选 `5` 重新冻结 |
+| 开机自启（可选） | 把 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 下对应项指向 `WorkBuddy AI.cmd` 的**完整路径**（务必带引号） |
+
+> 桌面 / 开始菜单里旧的 `WorkBuddy.lnk` 仍直达 `exe`，双击会绕过隔离。建议删除，改为右键启动 `.cmd` → 发送到 → 桌面快捷方式。
 
 ---
 
@@ -108,14 +120,14 @@ flowchart LR
 ========================================================
 ```
 
-| 选项           | 行为                                                                                   | 安全设计                                        |
-| ------------ | ------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `1` 快照       | 复制 `~\.workbuddy`、`~\.workbuddy-ai`、`%LOCALAPPDATA%\CodeBuddyExtension` 并打包，保留最近 5 份 | 先做进程检查，未全部退出则循环等待；退出日志/缓存等大目录               |
-| `2` 清缓存      | 删除系统 `%TEMP%` 下的 `workbuddy-update-x64*`                                             | 需输入完整 `yes`；**任何位于 `WB-Isolated` 下的路径强制跳过** |
-| `3` 快照 + 清缓存 | 按「先备份、后删除」顺序执行                                                                       | 同上                                          |
-| `4` 解冻       | 删除 6 个占位文件，恢复应用内更新                                                                   | —                                           |
-| `5` 冻结       | 在两侧隔离 TEMP 各建 3 个同名空文件                                                               | —                                           |
-| `6` 刷新       | 重读状态                                                                                 | —                                           |
+| 选项 | 行为 | 安全设计 |
+|---|---|---|
+| `1` 快照 | 复制 `~\.workbuddy`、`~\.workbuddy-ai`、`%LOCALAPPDATA%\CodeBuddyExtension` 并打包，保留最近 5 份 | 先做进程检查，未全部退出则循环等待；排除日志/缓存等大目录 |
+| `2` 清缓存 | 删除系统 `%TEMP%` 下的 `workbuddy-update-x64*` | 需输入完整 `yes`；**任何位于 `WB-Isolated` 下的路径强制跳过** |
+| `3` 快照 + 清缓存 | 按「先备份、后删除」顺序执行 | 同上 |
+| `4` 解冻 | 删除 6 个占位文件，恢复应用内更新 | — |
+| `5` 冻结 | 在两侧隔离 TEMP 各建 3 个同名空文件 | — |
+| `6` 刷新 | 重读状态 | — |
 
 ---
 
@@ -138,36 +150,40 @@ flowchart LR
 
 更新时按下面的顺序操作，应用内更新照常可用。
 
-**方式 A：应用内更新（推荐）**
+### 方式 A：应用内更新（推荐）
 
 前提：要更新的那一版**是通过 `.cmd` 启动的**。否则它的 `TEMP` 是系统目录，解冻没有意义。
 
-1. 双击 `DualGuard.cmd` → 选 `4` 解冻（6 个占位文件被删除，可随时做，不影响运行中的实例）
+1. 双击 `DualGuard.cmd` → 选 `4` 解冻（删除 6 个占位文件，可随时做，不影响运行中的实例）
 2. 完全退出**另一个**版本（托盘图标右键退出，点窗口 × 不算）
 3. 在要更新的那一版里点更新提示 → 等下载完成 → 提示重启时让它重启
 4. 双击 `DualGuard.cmd` → 选 `6`，确认版本号已变、端点没串
 5. 选 `5` 重新冻结
 
-> 如果第 3 步点击后没反应，先完全退出该客户端再用 `.cmd` 重新启动，然后重试——更新器可能还停在上一次"下载失败"的状态里。
+> 如果第 3 步点击后没反应，先完全退出该客户端、再用 `.cmd` 重新启动然后重试——更新器可能还停在上一次"下载失败"的状态里。
 
-**方式 B：官网安装包覆盖**
+### 方式 B：官网安装包覆盖
 
 1. 从官网下载最新安装包
 2. 完全退出**两个**版本
 3. 双击安装包，装到**原来那个安装目录**（不要让安装器换路径）
-4. 启动前双击 `DualGuard.cmd` → 选 `5` 重新冻结（覆盖安装可能未被冻结影响，装完确认一下状态）
+4. 启动前双击 `DualGuard.cmd` → 选 `5` 重新冻结（覆盖安装可能不受冻结影响，装完确认一下状态）
+
+**不需要先卸载任何东西。** 安装器内部本来就会先做一次静默卸载再装回去——这正是"整包重装"的由来。
+
+**想更稳一点**：更新前先做一次快照（`DualGuard.cmd` → 选 `1`，需两版退出），万一更新出问题，数据还在。
 
 ---
 
 ## 数据与日志位置
 
-| 内容             | 路径                                                          |
-| -------------- | ----------------------------------------------------------- |
-| 隔离 TEMP（含占位文件） | `%LOCALAPPDATA%\WB-Isolated\{cn,ai}\temp`                   |
-| 启动日志           | `%LOCALAPPDATA%\DualGuard\logs\dg-launch.log`               |
-| 维护日志           | `%LOCALAPPDATA%\DualGuard\logs\dg-maintain.log`             |
-| 快照             | `%LOCALAPPDATA%\DualGuard\snapshots\dg-yyyyMMdd-HHmmss.zip` |
-| 程序本体           | 工具所在目录（静态，无产物）                                              |
+| 内容 | 路径 |
+|---|---|
+| 隔离 TEMP（含占位文件） | `%LOCALAPPDATA%\WB-Isolated\{cn,ai}\temp` |
+| 启动日志 | `%LOCALAPPDATA%\DualGuard\logs\dg-launch.log` |
+| 维护日志 | `%LOCALAPPDATA%\DualGuard\logs\dg-maintain.log` |
+| 快照 | `%LOCALAPPDATA%\DualGuard\snapshots\dg-yyyyMMdd-HHmmss.zip` |
+| 程序本体 | 工具所在目录（静态，无产物） |
 
 所有写入都在用户目录下，因此**不需要管理员权限**。
 
@@ -195,7 +211,7 @@ Get-ChildItem "$env:LOCALAPPDATA\WB-Isolated\ai\temp" | Select-Object Name, Last
 
 **三、最强的证据**
 
-触发一次更新检查（或等到它自己检查），再回来看同一位置有没有出现 `workbuddy-update-x64` 子目录。出现了，说明更新器确实在用隔离目录，闭环成立——这正是共用缓存冲突被切断的那一刻。
+触发一次更新检查（或等它自己检查），再回来看同一位置有没有出现 `workbuddy-update-x64` 子目录。出现了，说明更新器确实在用隔离目录，闭环成立——这正是共用缓存冲突被切断的那一刻。
 
 ---
 
@@ -226,12 +242,12 @@ Get-ChildItem "$env:LOCALAPPDATA\WB-Isolated\ai\temp" | Select-Object Name, Last
 
 ## 回滚
 
-| 对象      | 操作                                                                                                                              |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 自启项     | 把 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 下的 `WorkBuddy.WorkBuddyAI` 改回原来的值，即国际版安装目录下的 `WorkBuddyAI.exe` 完整路径（带引号） |
-| 隔离目录    | 删除 `%LOCALAPPDATA%\WB-Isolated`                                                                                                 |
-| 日志 / 快照 | 删除 `%LOCALAPPDATA%\DualGuard`                                                                                                   |
-| 程序      | 删除本目录                                                                                                                           |
+| 对象 | 操作 |
+|---|---|
+| 自启项 | 把 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 下的 `WorkBuddy.WorkBuddyAI` 改回原来的值，即国际版安装目录下的 `WorkBuddyAI.exe` 完整路径（带引号） |
+| 隔离目录 | 删除 `%LOCALAPPDATA%\WB-Isolated` |
+| 日志 / 快照 | 删除 `%LOCALAPPDATA%\DualGuard` |
+| 程序 | 删除本目录 |
 
 本工具不修改任何程序文件、不修改 `HKLM`、不修改两个客户端的数据根（`~\.workbuddy` / `~\.workbuddy-ai`），回滚无残留。
 
@@ -239,20 +255,29 @@ Get-ChildItem "$env:LOCALAPPDATA\WB-Isolated\ai\temp" | Select-Object Name, Last
 
 ## 常见问题
 
-**Q：会不会因为改 TEMP 让客户端出错？**  
+**Q：会不会因为改 TEMP 让客户端出错？**
+
 不会。TEMP 只影响临时文件落点，客户端本来就允许它可变（企业环境下 TEMP 常被重定向）。
 
-**Q：冻结之后还能更新吗？**  
+**Q：冻结之后还能更新吗？**
+
 能。菜单选 `4` 解冻即可，或用官网安装包覆盖安装，后者任何时候都不受阻挡。
 
-**Q：我只有一个版本，还需要它吗？**  
+**Q：我只有一个版本，还需要它吗？**
+
 不需要。共用缓存冲突只在两版并存时才有意义。
 
-**Q：为什么启动器叫 `WorkBuddy CN.cmd` 而不是 `DualGuard CN.cmd`？**  
+**Q：为什么启动器叫 `WorkBuddy CN.cmd` 而不是 `DualGuard CN.cmd`？**
+
 启动器按"它启动什么"命名，用户一眼能选对；工具入口 `DualGuard.cmd` 按"工具"命名。两套命名各司其职。
 
-**Q：为什么 `dg-menu.ps1` 开头有 BOM？**  
+**Q：为什么 `dg-menu.ps1` 开头有 BOM？**
+
 PowerShell 5.1 在读取无 BOM 的 `.ps1` 时会按系统 ANSI 代码页解析，中文会变乱码。`.cmd` 则只用 ASCII，避免代码页问题。
+
+**Q：会不会把我的数据搞丢？**
+
+工具本身只读数据、只写自己的日志与快照。真正的风险来自客户端更新器，所以提供了快照功能：选 `1` 生成的 zip 包含两个数据根与登录态，可直接解压回原位。
 
 ---
 
@@ -266,7 +291,6 @@ A companion menu handles status checks, data snapshots, cache cleanup, and an op
 
 **Setup order matters:** run the menu first (freeze, then snapshot + cleanup — both require the clients to be closed), and only then launch through the `.cmd` files. Freezing applies to processes started after the placeholder files exist.
 
-
 **Not a guarantee.** Installer behaviour (process termination, install-directory memory) is a binary-level concern this approach cannot control. Use it to reduce risk, together with the discipline of never updating both builds at once.
 
 ---
@@ -275,4 +299,4 @@ A companion menu handles status checks, data snapshots, cache cleanup, and an op
 
 本项目为第三方工具，与 WorkBuddy 官方无关，不包含任何客户端二进制文件，也未修改其程序文件。
 
-若用于公开仓库，建议补充一份 `LICENSE`（MIT 或 Apache-2.0 均可）。当前未附带许可证文件。
+以 [MIT License](LICENSE) 授权。脚本按现状提供，使用前请自行评估风险。
